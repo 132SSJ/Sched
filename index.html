@@ -41,8 +41,11 @@ h1{font-size:26px;margin:0;font-weight:400;letter-spacing:.5px}
 .tag b{background:var(--c);color:#4a3b32;font-weight:400;font-size:18px;padding:4px 14px;border-radius:99px;border:3px solid var(--d)}
 .tag span{font-size:14px;color:var(--sub)}
 .card.done .tag span{color:var(--tx)}
-label{display:flex;gap:12px;align-items:center;padding:12px 2px;border-top:2.5px dashed var(--ln);font-size:17px;cursor:pointer;line-height:1.35}
-label:first-of-type{border-top:0}
+.grp{margin-top:4px}
+.grp h3{margin:10px 0 0;font-size:14px;font-weight:400;color:var(--sub);display:flex;align-items:center;gap:6px}
+.grp h3::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--d)}
+label{display:flex;gap:12px;align-items:center;padding:10px 2px 10px 15px;border-top:2.5px dashed var(--ln);font-size:17px;cursor:pointer;line-height:1.35}
+.grp:first-of-type label:first-of-type{border-top:0}
 input{appearance:none;-webkit-appearance:none;flex:none;width:30px;height:30px;margin:0;border:3px solid var(--d);border-radius:11px;background:#fff;display:grid;place-content:center;transition:background .15s,transform .15s}
 input::after{content:"✓";font-size:20px;line-height:1;color:#4a3b32;transform:scale(0);transition:transform .25s cubic-bezier(.3,2,.5,1)}
 input:checked{background:var(--c);transform:rotate(-6deg)}
@@ -77,11 +80,19 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.15)}
 </main>
 <script>
 const DATA=[
-["국어","📖","#ffd45e","#e7b52c",["무제 1일차+강아트로 총 6지문","언매n제 1세트(또는 실모)"]],
-["수학","📐","#7fcdf5","#4aa9dc",["n기출 20문제","설맞이 20문제","지인선 1세트(또는 실모)"]],
-["영어","🔤","#f9a8bd","#e2748f",["빈순삽 기출 1개"]],
-["물리","🔭","#f7a04a","#d97c1c",["실모 1개","특난도 특강 1회분(또는 일당백 3단원)"]],
-["지구","🌍","#f28b8e","#d6595d",["실모 1개","매직 실전문제 20문제"]]
+["학교","🏫","#ffd45e","#e7b52c",[
+  ["국어",["무제+강아트"]],
+  ["수학",["설맞이+n기출"]],
+  ["물리",["특난도특강"]],
+  ["지구",["매실문+오지 파이널"]]
+]],
+["스카 공부","📚","#7fcdf5","#4aa9dc",[
+  ["수학",["실모"]],
+  ["국어",["실모 또는 언매n제"]],
+  ["물리",["실모"]],
+  ["지구",["실모"]],
+  ["영어",["빈순삽 1회"]]
+]]
 ];
 const d=new Date(),pad=n=>String(n).padStart(2,"0");
 const key="checklist:"+d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
@@ -92,20 +103,26 @@ function save(){try{localStorage.setItem(key,JSON.stringify(st))}catch(e){}pushD
 function render(){
   const list=document.getElementById("list");list.innerHTML="";
   let total=0,done=0;
-  DATA.forEach(([sub,emo,c,dk,items],si)=>{
+  DATA.forEach(([sub,emo,c,dk,groups],si)=>{
     const card=document.createElement("div");card.className="card";
     card.style.setProperty("--c",c);card.style.setProperty("--d",dk);
-    let sd=0;
-    items.forEach((t,ii)=>{if(st[si+"-"+ii])sd++});
-    total+=items.length;done+=sd;
-    const full=sd===items.length;
+    let cardTotal=0,cardDone=0;
+    groups.forEach(([,items])=>{cardTotal+=items.length});
+    groups.forEach((g,gi)=>{g[1].forEach((t,ii)=>{if(st[si+"-"+gi+"-"+ii])cardDone++})});
+    total+=cardTotal;done+=cardDone;
+    const full=cardDone===cardTotal;
     if(full)card.classList.add("done");
-    card.innerHTML='<div class="tag"><b>'+emo+" "+sub+"</b><span>"+(full?"완료 🎀":sd+" / "+items.length)+"</span></div>";
-    items.forEach((t,ii)=>{
-      const l=document.createElement("label"),k=document.createElement("input"),s=document.createElement("span");
-      k.type="checkbox";k.checked=!!st[si+"-"+ii];s.textContent=t;
-      k.onchange=()=>{st[si+"-"+ii]=k.checked;save();render()};
-      l.append(k,s);card.append(l);
+    card.innerHTML='<div class="tag"><b>'+emo+" "+sub+"</b><span>"+(full?"완료 🎀":cardDone+" / "+cardTotal)+"</span></div>";
+    groups.forEach(([gname,items],gi)=>{
+      const grp=document.createElement("div");grp.className="grp";
+      grp.innerHTML='<h3>'+gname+'</h3>';
+      items.forEach((t,ii)=>{
+        const l=document.createElement("label"),k=document.createElement("input"),s=document.createElement("span");
+        k.type="checkbox";k.checked=!!st[si+"-"+gi+"-"+ii];s.textContent=t;
+        k.onchange=()=>{st[si+"-"+gi+"-"+ii]=k.checked;save();render()};
+        l.append(k,s);grp.append(l);
+      });
+      card.append(grp);
     });
     list.append(card);
   });
