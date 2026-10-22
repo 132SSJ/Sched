@@ -81,10 +81,7 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.15)}
 <input type="file" id="file" accept="image/*" multiple style="display:none">
 </main>
 <script>
-/* ===== npoint.io에서 만든 bin의 ID로 바꾸세요 ===== */
-/* 예: https://api.npoint.io/abcd1234ef567890 -> "abcd1234ef567890" */
 const NPOINT_ID = "05c35df03ae570265b56";
-/* ================================================== */
 
 const DATA=[
 ["학교","🏫","#ffd45e","#e7b52c",[
@@ -108,7 +105,7 @@ const $=id=>document.getElementById(id);
 let st={};
 try{st=JSON.parse(localStorage.getItem(key)||"{}")}catch(e){st={}}
 
-const hasCloud = NPOINT_ID!=="YOUR_NPOINT_ID" && NPOINT_ID.trim()!=="";
+const hasCloud = NPOINT_ID.trim()!=="";
 const API="https://api.npoint.io/"+NPOINT_ID;
 async function cloudGet(){
   if(!hasCloud)return null;
@@ -125,8 +122,8 @@ function cloudSet(data){
   pushTm=setTimeout(async()=>{
     $("sync").textContent="☁️ 동기화 중…";
     try{
-      await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
-      $("sync").textContent="☁️ 동기화됨";
+      const r=await fetch(API,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+      $("sync").textContent=r.ok?"☁️ 동기화됨":"☁️ 동기화 실패 ("+r.status+")";
     }catch(e){$("sync").textContent="☁️ 동기화 실패 (오프라인?)"}
   },500);
 }
