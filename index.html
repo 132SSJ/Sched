@@ -30,6 +30,7 @@ header{text-align:center}
 @keyframes pop{to{transform:scale(1.3) rotate(10deg)}}
 h1{font-size:26px;margin:0;font-weight:400;letter-spacing:.5px}
 .date{color:var(--sub);font-size:15px;margin:2px 0 14px}
+.sync{font-size:12px;color:var(--sub);margin-top:-8px;margin-bottom:10px}
 .bar{height:22px;background:var(--card);border:3.5px solid var(--bd);border-radius:99px;overflow:hidden;box-shadow:0 4px 0 rgba(0,0,0,.12)}
 .bar i{display:block;height:100%;width:0;border-radius:99px;background:repeating-linear-gradient(-45deg,#f9a8bd 0 10px,#fbc3d2 10px 20px);transition:width .35s cubic-bezier(.3,1.5,.5,1)}
 .sum{display:flex;justify-content:space-between;font-size:15px;margin:8px 4px 4px}
@@ -66,6 +67,7 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.15)}
 <div class="pic" id="pic"><img id="picimg" alt=""></div>
 <h1>매일 체크리스트</h1>
 <div class="date" id="date"></div>
+<div class="sync" id="sync">☁️ 동기화 대기중…</div>
 </header>
 <div class="bar"><i id="bar"></i></div>
 <div class="sum"><span id="cnt"></span><span id="pct"></span></div>
@@ -79,10 +81,15 @@ button:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.15)}
 <input type="file" id="file" accept="image/*" multiple style="display:none">
 </main>
 <script>
+/* ===== npoint.io에서 만든 bin의 ID로 바꾸세요 ===== */
+/* 예: https://api.npoint.io/abcd1234ef567890 -> "abcd1234ef567890" */
+const NPOINT_ID = "YOUR_NPOINT_ID";
+/* ================================================== */
+
 const DATA=[
 ["학교","🏫","#ffd45e","#e7b52c",[
   ["국어",["무제+강아트"]],
-  ["수학",["설맞이+강대써킷(아님지인선)"]],
+  ["수학",["설맞이+n기출"]],
   ["물리",["특난도특강"]],
   ["지구",["매실문+오지 파이널"]]
 ]],
@@ -97,9 +104,34 @@ const DATA=[
 const d=new Date(),pad=n=>String(n).padStart(2,"0");
 const key="checklist:"+d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 document.getElementById("date").textContent=d.getFullYear()+"년 "+(d.getMonth()+1)+"월 "+d.getDate()+"일 "+"일월화수목금토"[d.getDay()]+"요일";
+const $=id=>document.getElementById(id);
 let st={};
 try{st=JSON.parse(localStorage.getItem(key)||"{}")}catch(e){st={}}
-function save(){try{localStorage.setItem(key,JSON.stringify(st))}catch(e){}pushDb()}
+
+const hasCloud = NPOINT_ID!=="YOUR_NPOINT_ID" && NPOINT_ID.trim()!=="";
+const API="https://api.npoint.io/"+NPOINT_ID;
+async function cloudGet(){
+  if(!hasCloud)return null;
+  try{
+    const r=await fetch(API,{cache:"no-store"});
+    if(!r.ok)return null;
+    return await r.json();
+  }catch(e){return null}
+}
+let pushTm=null;
+function cloudSet(data){
+  if(!hasCloud)return;
+  clearTimeout(pushTm);
+  pushTm=setTimeout(async()=>{
+    $("sync").textContent="☁️ 동기화 중…";
+    try{
+      await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+      $("sync").textContent="☁️ 동기화됨";
+    }catch(e){$("sync").textContent="☁️ 동기화 실패 (오프라인?)"}
+  },500);
+}
+function save(){try{localStorage.setItem(key,JSON.stringify(st))}catch(e){}cloudSet({date:key,checks:st})}
+
 function render(){
   const list=document.getElementById("list");list.innerHTML="";
   let total=0,done=0;
@@ -134,9 +166,9 @@ function render(){
   document.getElementById("msg").textContent=p===100?"오늘 다 했다! 정말 수고했어 🎉":p>=50?"거의 다 왔어! 조금만 더 💪":p>0?"좋아, 시작이 반이야 ✨":"오늘도 하나씩 해볼까? 🌷";
 }
 document.getElementById("reset").onclick=()=>{st={};save();render()};
+
 let imgs=[],idx=0;
 try{imgs=JSON.parse(localStorage.getItem("checklist:imgs")||"[]")}catch(e){imgs=[]}
-const $=id=>document.getElementById(id);
 function showImg(){
   const has=imgs.length>0;
   $("pic").style.display=has?"block":"none";
@@ -144,8 +176,7 @@ function showImg(){
   $("delimg").style.display=has?"":"none";
   if(has)$("picimg").src=imgs[idx%imgs.length];
 }
-function saveImgs(){let ok=false;try{localStorage.setItem("checklist:imgs",JSON.stringify(imgs));ok=true}catch(e){}
-  if(db&&uid){db.doc(P("pics")).set({imgs}).catch(()=>{});ok=true}return ok}
+function saveImgs(){try{localStorage.setItem("checklist:imgs",JSON.stringify(imgs));return true}catch(e){return false}}
 const shrink=f=>new Promise(res=>{
   const fr=new FileReader();
   fr.onload=()=>{const im=new Image();
@@ -161,31 +192,22 @@ $("file").onchange=async()=>{
   const files=[...$("file").files].slice(0,6-imgs.length);
   for(const f of files){const u=await shrink(f);if(u)imgs.push(u)}
   $("file").value="";
-  while(imgs.length&&JSON.stringify(imgs).length>240000)imgs.pop();
-  if(!saveImgs()){imgs.length=Math.max(0,imgs.length-files.length);$("msg").textContent="이미지가 너무 커서 저장이 안 됐어 😢"}
+  while(imgs.length&&JSON.stringify(imgs).length>2000000)imgs.pop();
+  if(!saveImgs()){$("msg").textContent="이미지가 너무 커서 저장이 안 됐어 😢"}
   idx=0;showImg();
 };
 $("pic").onclick=()=>{idx=(idx+1)%imgs.length;showImg()};
 $("delimg").onclick=()=>{imgs=[];idx=0;saveImgs();showImg()};
 showImg();
 render();
-let db=null,uid=null,tm=null;
-const P=n=>"data/users/"+uid+"/"+n;
-function pushDb(){if(!db||!uid)return;clearTimeout(tm);tm=setTimeout(()=>{db.doc(P("state")).set({date:key,checks:st}).catch(()=>{})},400)}
+
 (async()=>{
-  try{
-    if(typeof claude==="undefined"||!claude.use)return;
-    const [u,d]=await Promise.all([claude.use("user"),claude.use("db")]);
-    if(!u||!d)return;
-    const id=await u.id();if(!id)return;
-    db=d;uid=id;
-    const [s,p]=await Promise.all([db.doc(P("state")).get(),db.doc(P("pics")).get()]);
-    if(s.exists){const v=s.data();if(v.date===key&&v.checks){st=v.checks;try{localStorage.setItem(key,JSON.stringify(st))}catch(e){}}}
-    else if(Object.keys(st).length)pushDb();
-    if(p.exists&&Array.isArray(p.data().imgs)&&p.data().imgs.length){imgs=p.data().imgs;idx=0}
-    else if(imgs.length)saveImgs();
-    render();showImg();
-  }catch(e){db=null}
+  if(!hasCloud){$("sync").textContent="📴 이 기기에만 저장 (동기화 꺼짐)";return}
+  $("sync").textContent="☁️ 불러오는 중…";
+  const rec=await cloudGet();
+  if(rec&&rec.date===key&&rec.checks){st=rec.checks;try{localStorage.setItem(key,JSON.stringify(st))}catch(e){}render()}
+  else if(Object.keys(st).length){cloudSet({date:key,checks:st})}
+  $("sync").textContent=rec?"☁️ 동기화됨":"☁️ 동기화 준비됨";
 })();
 </script>
 </body>
